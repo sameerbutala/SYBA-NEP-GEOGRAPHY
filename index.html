@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="mr">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SYBA NEP GEOGRAPHY – Secure PDF Viewer</title>
+  <meta name="description" content="PDF embedded in HTML with selection/copy/paste/print protections." />
+
+  <style>
+    /* Prevent selection/copy in most HTML UI */
+    html, body, * {
+      -webkit-user-select: none !important;
+      -moz-user-select: none !important;
+      -ms-user-select: none !important;
+      user-select: none !important;
+    }
+
+    /* Hide everything on print */
+    @media print {
+      html, body {
+        display: none !important;
+        visibility: hidden !important;
+      }
+    }
+
+    /* Full-viewport container */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #111;
+    }
+
+    .wrap {
+      height: 100%;
+      width: 100%;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      color: #eee;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    }
+
+    header {
+      padding: 12px 16px;
+      font-size: 14px;
+      letter-spacing: .2px;
+      background: #181818;
+      border-bottom: 1px solid #222;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .badge {
+      opacity: .8;
+      font-size: 12px;
+      padding: 2px 8px;
+      border: 1px solid #2a2a2a;
+      border-radius: 999px;
+    }
+
+    .viewer {
+      height: 100%;
+      width: 100%;
+      background: #000;
+    }
+
+    .viewer iframe, .viewer object, .viewer embed {
+      height: 100%;
+      width: 100%;
+      border: 0;
+      /* Do not allow dragging the embedded content */
+      -webkit-user-drag: none;
+      user-drag: none;
+    }
+
+    /* Optional subtle hint bar (non-interactive) */
+    .hint {
+      font-size: 12px;
+      opacity: .7;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <header aria-hidden="true">
+      <div>SYBA NEP GEOGRAPHY – PDF (Read‑only)</div>
+      <div class="badge hint">Selection/Copy/Paste/Print blocked</div>
+    </header>
+
+    <main class="viewer" aria-label="Document Viewer">
+      <!--
+        We embed the original PDF to preserve fonts, shaping and layout exactly.
+        The hash params attempt to remove toolbars where supported.
+      -->
+      <iframe
+        id="pdfFrame"
+        title="SYBA NEP GEOGRAPHY PDF"
+        src="./SYBA NEP GEOGRAPHY .pdf#toolbar=0&navpanes=0&statusbar=0&view=FitH"
+        loading="lazy"
+        referrerpolicy="no-referrer"
+        allow="clipboard-read; clipboard-write;"
+      ></iframe>
+    </main>
+  </div>
+
+  <script>
+    // --- Hardening: block common shortcuts and interactions ---
+    const blockEvent = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    };
+
+    // Disable context menu (right-click)
+    window.addEventListener('contextmenu', blockEvent, { capture: true });
+
+    // Disable selection APIs
+    window.addEventListener('selectstart', blockEvent, { capture: true });
+    window.addEventListener('copy', blockEvent, { capture: true });
+    window.addEventListener('cut', blockEvent, { capture: true });
+    window.addEventListener('paste', blockEvent, { capture: true });
+    window.addEventListener('dragstart', blockEvent, { capture: true });
+
+    // Attempt to block print dialog, save, devtools, etc.
+    window.addEventListener('keydown', (e) => {
+      const k = e.key?.toLowerCase?.() || '';
+      const ctrl = e.ctrlKey || e.metaKey;
+
+      // Common blocked combos
+      if (
+        ctrl && ['p','s','u','c','x','v','a'].includes(k) ||  // print, save, view-source, copy, cut, paste, select-all
+        (e.shiftKey && ctrl && ['i','j'].includes(k)) ||      // devtools (some browsers)
+        (e.keyCode === 123) ||                                // F12
+        (e.key === 'PrintScreen') ||                          // PrintScreen
+        (k === 'f1')                                          // F1 (some viewer help)
+      ) {
+        return blockEvent(e);
+      }
+    }, { capture: true });
+
+    // Block "beforeprint" where supported
+    window.addEventListener('beforeprint', blockEvent, { capture: true });
+
+    // Try to blur focus from the embedded PDF (limits text selection in some engines)
+    const iframe = document.getElementById('pdfFrame');
+    iframe?.addEventListener('load', () => {
+      try {
+        iframe.contentWindow?.document?.addEventListener('copy', blockEvent, { capture: true });
+        iframe.contentWindow?.document?.addEventListener('contextmenu', blockEvent, { capture: true });
+        iframe.contentWindow?.document?.addEventListener('selectstart', blockEvent, { capture: true });
+      } catch (err) {
+        // Cross-origin / viewer sandbox may prevent script injection – it's fine.
+      }
+      // Periodically remove selection if any
+      setInterval(() => {
+        try {
+          iframe.contentWindow?.getSelection?.()?.removeAllRanges?.();
+          window.getSelection?.()?.removeAllRanges?.();
+        } catch {}
+      }, 400);
+    });
+
+    // As a last resort, continuously clear selection in top window too
+    setInterval(() => {
+      try {
+        window.getSelection?.()?.removeAllRanges?.();
+      } catch {}
+    }, 400);
+
+    // Note: 100% prevention of copying/printing cannot be guaranteed on the open web.
+    // This page simply applies strong friction while preserving on‑screen readability.
+  </script>
+</body>
+</html>
